@@ -107,8 +107,8 @@ class BaseRelationship(CommonModel):  # pyre-ignore[13]
         # merge_props properties will be referenced individually with kwargs
         merge_props = {k: all_props[k] for k in self._merge_on}
 
-        source_prop = self.source.model_dump()[source_prop]
-        target_prop = self.target.model_dump()[target_prop]
+        source_prop = self.source.model_dump(exclude_none=False, exclude=exclusions, by_alias=True)[source_prop]
+        target_prop = self.target.model_dump(exclude_none=False, exclude=exclusions, by_alias=True)[target_prop]
 
         params.update(
             {
