@@ -112,9 +112,9 @@ class CommonModel(BaseModel):
         # get all the properties
         all_props = self._engine_dict(exclude=exclude)
 
-        always_set = {k: all_props[k] for k in self._always_set}
-        set_on_match = {k: all_props[k] for k in self._set_on_match}
-        set_on_create = {k: all_props[k] for k in self._set_on_create}
+        always_set = {k: all_props[k] for k in self._always_set if k in all_props and all_props[k] is not None}
+        set_on_match = {k: all_props[k] for k in self._set_on_match if k in all_props and all_props[k] is not None}
+        set_on_create = {k: all_props[k] for k in self._set_on_create if k in all_props and all_props[k] is not None}
         params = {
             "all_props": all_props,
             "always_set": always_set,
