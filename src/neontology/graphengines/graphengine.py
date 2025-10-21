@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, time, timedelta
-from typing import TYPE_CHECKING, Any, ClassVar, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generator, Optional, TypeVar
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, model_validator
@@ -16,6 +18,8 @@ if TYPE_CHECKING:
 
 BaseNodeT = TypeVar("BaseNodeT", bound="BaseNode")
 BaseRelationshipT = TypeVar("BaseRelationshipT", bound="BaseRelationship")
+
+_database_context: ContextVar[Optional[str]] = ContextVar("database_context", default=None)
 
 
 class GraphEngineBase:
@@ -40,6 +44,30 @@ class GraphEngineBase:
             config (Optional[dict]): GraphEngine configuration
         """
         pass
+
+    @contextmanager
+    def database(self, database_name: str) -> Generator[None, None, None]:
+        """Context manager to temporarily set the target database for queries.
+
+        This is thread-safe and allows different threads/async tasks to write to
+        different databases simultaneously.
+
+        Args:
+            database_name (str): The name of the database to use within the context.
+
+        Yields:
+            None
+
+        Example:
+            >>> gc = GraphConnection()
+            >>> with gc.engine.database("mydb"):
+            >>>     gc.evaluate_query("CREATE (n:Node {name: 'test'})")
+        """
+        token = _database_context.set(database_name)
+        try:
+            yield
+        finally:
+            _database_context.reset(token)
 
     @classmethod
     def _export_type_converter(cls, value: Any) -> Any:

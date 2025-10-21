@@ -4,7 +4,7 @@ from neo4j import GraphDatabase
 from neo4j import Result as Neo4jResult
 
 from ..result import NeontologyResult
-from .graphengine import GraphEngineBase, GraphEngineConfig
+from .graphengine import GraphEngineBase, GraphEngineConfig, _database_context
 from .neo4jengine import neo4j_records_to_neontology_records
 
 
@@ -64,7 +64,8 @@ class MemgraphEngine(GraphEngineBase):
         Returns:
             NeontologyResult: Result object containing the records, nodes, relationships, and paths.
         """
-        result = self.driver.execute_query(cypher, parameters_=params)
+        database = _database_context.get()
+        result = self.driver.execute_query(cypher, parameters_=params, database_=database)
 
         neo4j_records = result.records
         neontology_records, nodes, rels, paths = neo4j_records_to_neontology_records(
@@ -89,7 +90,10 @@ class MemgraphEngine(GraphEngineBase):
         Returns:
             Optional[Any]: Query result, or None if no result is found.
         """
-        result = self.driver.execute_query(cypher, parameters_=params, result_transformer_=Neo4jResult.single)
+        database = _database_context.get()
+        result = self.driver.execute_query(
+            cypher, parameters_=params, result_transformer_=Neo4jResult.single, database_=database
+        )
 
         if result:
             return result.value()

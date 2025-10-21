@@ -15,7 +15,7 @@ from typing_extensions import LiteralString, cast
 
 from ..gql import gql_identifier_adapter
 from ..result import NeontologyResult
-from .graphengine import GraphEngineBase, GraphEngineConfig
+from .graphengine import GraphEngineBase, GraphEngineConfig, _database_context
 
 if TYPE_CHECKING:
     from ..basenode import BaseNode
@@ -242,14 +242,16 @@ class Neo4jEngine(GraphEngineBase):
         Args:
             cypher (str): query to evaluate.
             params (dict, optional): parameters to pass through. Defaults to {}.
-            node_classes (dict, optional): mapping of labels to node classes used for populating with results. Defaults to {}.
-            relationship_classes (dict, optional): mapping of relationship types to classes used for populating with results.
-                Defaults to {}.
+            node_classes (dict, optional): mapping of labels to node classes used for
+                populating with results. Defaults to {}.
+            relationship_classes (dict, optional): mapping of relationship types to classes
+                used for populating with results. Defaults to {}.
 
         Returns:
             NeontologyResult: Result object containing the records, nodes, relationships, and paths.
         """
-        result = self.driver.execute_query(cypher, parameters_=params)
+        database = _database_context.get()
+        result = self.driver.execute_query(cypher, parameters_=params, database_=database)
 
         neo4j_records = result.records
         neontology_records, nodes, rels, paths = neo4j_records_to_neontology_records(
@@ -274,7 +276,10 @@ class Neo4jEngine(GraphEngineBase):
         Returns:
             Optional[Any]: Query result, or None if no result is found.
         """
-        result = self.driver.execute_query(cypher, parameters_=params, result_transformer_=Neo4jResult.single)
+        database = _database_context.get()
+        result = self.driver.execute_query(
+            cypher, parameters_=params, result_transformer_=Neo4jResult.single, database_=database
+        )
 
         if result:
             return result.value()
