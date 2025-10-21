@@ -87,7 +87,7 @@ class CommonModel(BaseModel):
         Returns:
             dict: a dictionary export of this model instance
         """
-        pydantic_export_dict = self.model_dump(exclude_none=False, exclude=exclude, by_alias=True, **kwargs)
+        pydantic_export_dict = self.model_dump(exclude_none=True, exclude=exclude, by_alias=True, **kwargs)
 
         # return pydantic_export_dict
 
