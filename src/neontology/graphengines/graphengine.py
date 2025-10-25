@@ -261,7 +261,7 @@ class GraphEngineBase:
         ",
         {
             batchSize: 5000,
-            parallel: true,
+            parallel: false,
             retries: 3,
             params: {
             node_list: $node_list,
@@ -324,55 +324,44 @@ class GraphEngineBase:
                 Each dictionary should contain keys for `source_prop`, `target_prop`, and any additional properties
                 to set on the relationship.
         """
-        validate = gql_identifier_adapter.validate_strings if gql_identifier_adapter else str
-        source_label_str = validate(source_label)
-        target_label_str = validate(target_label)
-        rel_type_str = validate(rel_type)
 
-        merge_props = [[x, f"rel.{x}"] for x in merge_on_props]
+        merge_props = ", ".join([f"{gql_identifier_adapter.validate_strings(x)}: rel.{x}" for x in merge_on_props])
 
         cypher = f"""
         CALL apoc.periodic.iterate(
-        "
+        '
         UNWIND $rel_list AS rel
         RETURN rel
-        ",
-        "
-        MATCH (source:{source_label_str})
-            WHERE source.{source_prop} = rel.source_prop
-        MATCH (target:{target_label_str})
-            WHERE target.{target_prop} = rel.target_prop
+        ',
+        '
+        MATCH (source:{gql_identifier_adapter.validate_strings(source_label)})
+            WHERE source.{gql_identifier_adapter.validate_strings(source_prop)} = rel.source_prop
+        MATCH (target:{gql_identifier_adapter.validate_strings(target_label)})
+            WHERE target.{gql_identifier_adapter.validate_strings(target_prop)} = rel.target_prop
         CALL apoc.merge.relationship(
             source,
-            '{rel_type_str}',
-            apoc.map.fromPairs($merge_props),
+            "{gql_identifier_adapter.validate_strings(rel_type)}",
+            apoc.map.fromPairs([{merge_props}]),
             coalesce(rel.set_on_create, {{}}),
             coalesce(rel.set_on_match, {{}}),
             target
         ) YIELD rel AS r
         SET r += coalesce(rel.always_set, {{}})
         RETURN count(*)
-        ",
+        ',
         {{
-            batchSize: 1000,
-            parallel: true,
+            batchSize: 5000,
+            parallel: false,
             params: {{
-            rel_list: $rel_list,
-            merge_props: $merge_props
+            rel_list: $rel_list
             }}
         }}
         )
         YIELD batches, total
-        RETURN batches, total;
+        RETURN batches, total
         """
+        params = {"rel_list": rel_props}
 
-        # --- Step 4. Build parameters ---
-        params = {
-            "rel_list": rel_props,
-            "merge_props": merge_props,
-        }
-
-        # --- Step 5. Execute query ---
         result = self.evaluate_query_single(cypher, params)
 
         return result
