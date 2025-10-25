@@ -327,19 +327,54 @@ class GraphEngineBase:
         # build a string of properties to merge on "prop_name: $prop_name"
         merge_props = ", ".join([f"{gql_identifier_adapter.validate_strings(x)}: rel.{x}" for x in merge_on_props])
 
-        cypher = f"""
+        cypher = """
+        CALL apoc.periodic.iterate(
+        "
         UNWIND $rel_list AS rel
-        MATCH (source:{gql_identifier_adapter.validate_strings(source_label)})
-        WHERE source.{gql_identifier_adapter.validate_strings(source_prop)} = rel.source_prop
-        MATCH (target:{gql_identifier_adapter.validate_strings(target_label)})
-        WHERE target.{gql_identifier_adapter.validate_strings(target_prop)} = rel.target_prop
-        MERGE (source)-[r:{gql_identifier_adapter.validate_strings(rel_type)} {{ {merge_props} }}]->(target)
-        ON MATCH SET r += rel.set_on_match
-        ON CREATE SET r += rel.set_on_create
-        SET r += rel.always_set
+        RETURN rel
+        ",
+        "
+        MATCH (source:$source_label)
+            WHERE source[$source_prop] = rel.source_prop
+        MATCH (target:$target_label)
+            WHERE target[$target_prop] = rel.target_prop
+        WITH source, target, rel
+        CALL apoc.merge.relationship(
+            source,
+            $rel_type,
+            apoc.map.fromPairs($merge_props),
+            coalesce(rel.set_on_create, {}),
+            coalesce(rel.set_on_match, {}),
+            target
+        ) YIELD rel AS r
+        SET r += coalesce(rel.always_set, {})
+        ",
+        {
+            batchSize: 1000,
+            parallel: true,
+            params: {
+            rel_list: $rel_list,
+            source_label: $source_label,
+            source_prop: $source_prop,
+            target_label: $target_label,
+            target_prop: $target_prop,
+            rel_type: $rel_type,
+            merge_props: $merge_props
+            }
+        }
+        )
+        YIELD batches, total
+        RETURN batches, total;
         """
 
-        params = {"rel_list": rel_props}
+        params = {"rel_list": rel_props,
+                  "source_label": gql_identifier_adapter.validate_strings(source_label),
+                  "source_prop": source_prop,
+                  "target_label": gql_identifier_adapter.validate_strings(target_label),
+                  "target_prop": target_prop,
+                  "rel_type": gql_identifier_adapter.validate_strings(rel_type),
+                  "merge_props": [[x, f"rel.{x}"] for x in merge_on_props],
+                  }
 
         self.evaluate_query_single(cypher, params)
 
