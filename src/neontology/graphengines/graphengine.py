@@ -244,16 +244,37 @@ class GraphEngineBase:
         """
         label_identifiers = [gql_identifier_adapter.validate_strings(x) for x in labels]
 
-        cypher = f"""
+        cypher = """
+        CALL apoc.periodic.iterate(
+        "
         UNWIND $node_list AS node
-        MERGE (n:{":".join(label_identifiers)} {{{gql_identifier_adapter.validate_strings(pp_key)}: node.pp}})
-        ON MATCH SET n += node.set_on_match
-        ON CREATE SET n += node.set_on_create
-        SET n += node.always_set
-        RETURN n
+        RETURN node
+        ",
+        "
+        CALL apoc.merge.node(
+            $labels,
+            apoc.map.setKey({}, $pp_key, node.pp),
+            coalesce(node.set_on_create, {}),
+            coalesce(node.set_on_match, {})
+        ) YIELD node AS n
+        SET n += coalesce(node.always_set, {})
+        ",
+        {
+            batchSize: 5000,
+            parallel: true,
+            retries: 3,
+            params: {
+            node_list: $node_list,
+            labels: $labels,
+            pp_key: $pp_key
+            }
+        }
+        )
+        YIELD batches, total
+        RETURN batches, total;
         """
 
-        params = {"node_list": properties}
+        params = {"node_list": properties, "labels": label_identifiers, "pp_key": pp_key}
 
         node_classes = {node_class.__primarylabel__: node_class}
 
