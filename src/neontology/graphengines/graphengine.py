@@ -260,8 +260,8 @@ class GraphEngineBase:
         SET n += coalesce(node.always_set, {})
         ",
         {
-            batchSize: 1000,
-            parallel: false,
+            batchSize: 500,
+            parallel: true,
             retries: 3,
             params: {
             node_list: $node_list,
@@ -329,25 +329,31 @@ class GraphEngineBase:
 
         cypher = f"""
         CALL apoc.periodic.iterate(
-        "UNWIND $rel_list AS rel RETURN rel",
         "
-        MATCH (source:{gql_identifier_adapter.validate_strings(source_label)})
-        WHERE source.{gql_identifier_adapter.validate_strings(source_prop)} = rel.source_prop
-        MATCH (target:{gql_identifier_adapter.validate_strings(target_label)})
-        WHERE target.{gql_identifier_adapter.validate_strings(target_prop)} = rel.target_prop
+        UNWIND $rel_list AS rel
+        MATCH (source:{gql_identifier_adapter.validate_strings(source_label)} 
+                {{ {gql_identifier_adapter.validate_strings(source_prop)}: rel.source_prop }})
+        MATCH (target:{gql_identifier_adapter.validate_strings(target_label)} 
+                {{ {gql_identifier_adapter.validate_strings(target_prop)}: rel.target_prop }})
+        RETURN source, target, rel
+        ",
+        "
         MERGE (source)-[r:{gql_identifier_adapter.validate_strings(rel_type)} {{ {merge_props} }}]->(target)
         ON MATCH SET r += rel.set_on_match
         ON CREATE SET r += rel.set_on_create
         SET r += rel.always_set
         ",
-        {{batchSize:1000, parallel:false, params:{{rel_list:$rel_list}}}}
+        {{
+            batchSize: 500,
+            parallel: true,
+            concurrency: 8,
+            params: {{ rel_list: $rel_list }}
+        }}
         )
         """
 
         params = {"rel_list": rel_props}
-
         result = self.evaluate_query_single(cypher, params)
-
         return result
 
     def _filters_to_where_clause(self, filters: Optional[dict] = None) -> tuple[Optional[str], dict]:
