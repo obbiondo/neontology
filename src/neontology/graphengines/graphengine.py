@@ -324,42 +324,21 @@ class GraphEngineBase:
                 Each dictionary should contain keys for `source_prop`, `target_prop`, and any additional properties
                 to set on the relationship.
         """
-
+        # build a string of properties to merge on "prop_name: $prop_name"
         merge_props = ", ".join([f"{gql_identifier_adapter.validate_strings(x)}: rel.{x}" for x in merge_on_props])
 
         cypher = f"""
-        CALL apoc.periodic.iterate(
-        '
         UNWIND $rel_list AS rel
-        RETURN rel
-        ',
-        '
         MATCH (source:{gql_identifier_adapter.validate_strings(source_label)})
-            WHERE source.{gql_identifier_adapter.validate_strings(source_prop)} = rel.source_prop
+        WHERE source.{gql_identifier_adapter.validate_strings(source_prop)} = rel.source_prop
         MATCH (target:{gql_identifier_adapter.validate_strings(target_label)})
-            WHERE target.{gql_identifier_adapter.validate_strings(target_prop)} = rel.target_prop
-        CALL apoc.merge.relationship(
-            source,
-            "{gql_identifier_adapter.validate_strings(rel_type)}",
-            apoc.map.fromPairs([{merge_props}]),
-            coalesce(rel.set_on_create, {{}}),
-            coalesce(rel.set_on_match, {{}}),
-            target
-        ) YIELD rel AS r
-        SET r += coalesce(rel.always_set, {{}})
-        RETURN count(*)
-        ',
-        {{
-            batchSize: 5000,
-            parallel: false,
-            params: {{
-            rel_list: $rel_list
-            }}
-        }}
-        )
-        YIELD batches, total
-        RETURN batches, total
+        WHERE target.{gql_identifier_adapter.validate_strings(target_prop)} = rel.target_prop
+        MERGE (source)-[r:{gql_identifier_adapter.validate_strings(rel_type)} {{ {merge_props} }}]->(target)
+        ON MATCH SET r += rel.set_on_match
+        ON CREATE SET r += rel.set_on_create
+        SET r += rel.always_set
         """
+
         params = {"rel_list": rel_props}
 
         result = self.evaluate_query_single(cypher, params)
