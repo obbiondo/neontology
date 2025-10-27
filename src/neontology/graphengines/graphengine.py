@@ -260,7 +260,7 @@ class GraphEngineBase:
         SET n += coalesce(node.always_set, {})
         ",
         {
-            batchSize: 5000,
+            batchSize: 100,
             parallel: true,
             retries: 3,
             params: {
@@ -340,7 +340,7 @@ class GraphEngineBase:
         ON CREATE SET r += rel.set_on_create
         SET r += rel.always_set
         ",
-        {{batchSize:5000, parallel:true, params:{{rel_list:$rel_list}}}}
+        {{batchSize:100, parallel:true, params:{{rel_list:$rel_list}}}}
         )
         """
 
