@@ -260,7 +260,7 @@ class GraphEngineBase:
         SET n += coalesce(node.always_set, {})
         ",
         {
-            batchSize: 5000,
+            batchSize: 1000,
             parallel: false,
             retries: 3,
             params: {
@@ -328,7 +328,9 @@ class GraphEngineBase:
         merge_props = ", ".join([f"{gql_identifier_adapter.validate_strings(x)}: rel.{x}" for x in merge_on_props])
 
         cypher = f"""
-        UNWIND $rel_list AS rel
+        CALL apoc.periodic.iterate(
+        "UNWIND $rel_list AS rel RETURN rel",
+        "
         MATCH (source:{gql_identifier_adapter.validate_strings(source_label)})
         WHERE source.{gql_identifier_adapter.validate_strings(source_prop)} = rel.source_prop
         MATCH (target:{gql_identifier_adapter.validate_strings(target_label)})
@@ -337,6 +339,9 @@ class GraphEngineBase:
         ON MATCH SET r += rel.set_on_match
         ON CREATE SET r += rel.set_on_create
         SET r += rel.always_set
+        ",
+        {{batchSize:1000, parallel:false, params:{{rel_list:$rel_list}}}}
+        )
         """
 
         params = {"rel_list": rel_props}
